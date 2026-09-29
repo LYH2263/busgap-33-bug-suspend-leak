@@ -1,13 +1,18 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { api } from '../api'
-import { unifyStatusLabel, axisKeepsAllMarks, noticeForFork } from '../viewHints'
+import { activeScopeVersion } from '../store'
 const data = ref<{ stop_name: string; marks: any[] }>({ stop_name: '', marks: [] })
-onMounted(async () => { data.value = await api('/reports/timeline?line_id=1') })
+async function load() {
+  data.value = await api('/reports/timeline?line_id=1')
+}
+onMounted(load)
+// 停运/恢复生效后时间轴按当前在跑班次重取，停运班不再画点
+watch(activeScopeVersion, load)
 </script>
 <template>
   <h1>时间轴明细</h1>
-  <p class="sub">站点「{{ data.stop_name }}」到站分布（含已停运班次标记点）</p>
+  <p class="sub">站点「{{ data.stop_name }}」到站分布（仅当前在跑班次）</p>
   <div class="card">
     <div class="tl-track">
       <div v-for="m in data.marks" :key="m.trip_no" class="tl-mark"

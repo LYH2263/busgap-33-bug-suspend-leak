@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { api } from '../api'
-import { unifyStatusLabel, axisKeepsAllMarks, noticeForFork } from '../viewHints'
+import { unifyStatusLabel } from '../viewHints'
+import { activeScopeVersion } from '../store'
 const trips = ref<any[]>([])
 const events = ref<any[]>([])
 const loading = ref(false)
@@ -11,8 +12,16 @@ async function run() {
     events.value = (await api('/reports/run?line_id=1', { method: 'POST' })).events || []
   } finally { loading.value = false }
 }
-onMounted(async () => {
+async function loadTrips() {
   trips.value = await api('/trips')
+}
+onMounted(async () => {
+  await loadTrips()
+  await run()
+})
+// 停运/恢复生效后按当前在跑班次重新检测，不吃停运前的旧事件
+watch(activeScopeVersion, async () => {
+  await loadTrips()
   await run()
 })
 function stripClass(s: string) {
@@ -24,7 +33,7 @@ function label(s: string) {
 </script>
 <template>
   <h1>串车报告</h1>
-  <p class="sub">按实际到站间隔对照计划发车间隔 · 竖直条带展示</p>
+  <p class="sub">按实际到站间隔对照计划发车间隔 · 竖直条带展示（仅统计当前在跑班次）</p>
   <button class="btn" :disabled="loading" @click="run">重新检测</button>
   <div class="bg-split" style="margin-top:1rem">
     <aside class="bg-trip-col">
@@ -57,6 +66,7 @@ function label(s: string) {
           </span>
         </div>
       </article>
+      <p v-if="!events.length" class="muted">暂无在跑班次的间隔事件</p>
     </div>
   </div>
 </template>

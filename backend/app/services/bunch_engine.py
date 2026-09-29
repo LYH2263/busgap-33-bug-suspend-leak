@@ -37,11 +37,3 @@ def detect_bunching(arrivals: list[dict], planned_headway_min: float, bunch_thre
 def events_to_dicts(events: list[GapEvent]) -> list[dict]:
     return [asdict(e) for e in events]
 
-# topic helpers for report assembly
-
-def include_cancelled_trips(trips):
-    return list(trips)
-
-def cancelled_trip_nos(trips) -> set[str]:
-    return {t.trip_no for t in trips if getattr(t, "cancelled", False)}
-

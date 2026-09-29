@@ -1,22 +1,36 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { api } from '../api'
+import { bumpActiveScope } from '../store'
 const trips = ref<any[]>([])
 const events = ref<any[]>([])
 const busy = ref<number | null>(null)
+const error = ref('')
+async function loadEvents() {
+  events.value = (await api('/reports/run?line_id=1', { method: 'POST' })).events || []
+}
 async function refresh() {
   trips.value = await api('/trips')
   try {
-    events.value = (await api('/reports/run?line_id=1', { method: 'POST' })).events || []
+    await loadEvents()
   } catch { events.value = [] }
 }
 onMounted(refresh)
 async function toggle(r: any) {
   busy.value = r.id
+  error.value = ''
   try {
+    // 先等服务端确认保存，再重取列表/事件并通知各入口重算；
+    // 保存失败时本地不翻转、各处仍按保存前的在跑集合展示。
     await api(`/trips/${r.id}/${r.cancelled ? 'restore' : 'cancel'}`, { method: 'POST' })
-    trips.value = await api('/trips')
-  } finally { busy.value = null }
+  } catch (e: any) {
+    error.value = `${r.trip_no} ${r.cancelled ? '恢复' : '停运'}未保存：${e?.message || '请求失败'}`
+    return
+  } finally {
+    busy.value = null
+  }
+  bumpActiveScope()
+  await refresh()
 }
 function stripClass(s: string) {
   return s === 'bunching' ? 'bg-bunch' : s === 'large_gap' ? 'bg-large' : ''
@@ -28,7 +42,7 @@ function label(s: string) {
 <template>
   <h1>班次 · 间隔条带</h1>
   <p class="sub">左侧班次清单（可停运/恢复），右侧串车/间隔竖直条带</p>
-  <p class="muted">业务页与检测读口未强制同参与集</p>
+  <p v-if="error" class="badge badge-bad">{{ error }}</p>
   <div class="bg-split">
     <aside class="bg-trip-col">
       <h2>班次列表</h2>

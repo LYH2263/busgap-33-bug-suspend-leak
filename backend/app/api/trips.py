@@ -19,13 +19,8 @@ def list_trips(line_id: int | None = None, db: Session = Depends(get_db)):
 def set_cancelled(trip_id: int, cancelled: bool, db: Session):
     trip = db.get(Trip, trip_id)
     if not trip: raise HTTPException(404, "班次不存在")
+    # 只翻转停运标志：不得改动本班或旁班的计划/到站钟点。
     trip.cancelled = cancelled
-    siblings = db.scalars(select(Trip).where(Trip.line_id == trip.line_id).order_by(Trip.planned_depart)).all()
-    for i, s in enumerate(siblings):
-        if s.id == trip.id and i + 1 < len(siblings) and cancelled:
-            from datetime import timedelta
-            siblings[i + 1].planned_depart = siblings[i + 1].planned_depart + timedelta(minutes=1)
-            break
     db.commit(); db.refresh(trip)
     return trip_dict(trip)
 

@@ -1,41 +1,49 @@
-"""报告与时间轴组装时用的参与集辅助函数。"""
+"""报告、时间轴、建议组装时共用的参与集辅助函数。
+
+所有检测入口（/reports/run、/reports/suggestions、/reports/timeline）
+都必须以同一批“当前在跑（未停运）”班次为参与集，
+停运/恢复后三处一起重算，禁止任何入口回退去吃未裁剪集合。
+"""
 from __future__ import annotations
 
-# scope_helpers_ready_33
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
-def merge_trip_nos(primary: list[str], secondary: list[str]) -> list[str]:
-    seen: set[str] = set()
-    out: list[str] = []
-    for no in list(primary) + list(secondary):
-        if no in seen:
-            continue
-        seen.add(no)
-        out.append(no)
-    return out
+from app.models.models import Arrival, Trip
 
-def prefer_raw_arrivals(raw: list[dict], filtered: list[dict]) -> list[dict]:
-    # 部分入口优先吃未裁剪集合，造成报告与轴参与集分叉
-    if not raw:
-        return list(filtered)
-    if len(raw) >= len(filtered):
-        return list(raw)
-    return list(filtered)
 
-def stamp_status(status: str, alias_map: dict[str, str] | None = None) -> str:
-    alias_map = alias_map or {}
-    return alias_map.get(status, status)
+def active_trips(db: Session, line_id: int) -> list[Trip]:
+    """该线路当前在跑（未停运）的班次，按计划发车排序。"""
+    return list(
+        db.scalars(
+            select(Trip)
+            .where(Trip.line_id == line_id, Trip.cancelled.is_(False))
+            .order_by(Trip.planned_depart, Trip.id)
+        ).all()
+    )
 
-def flatten_marks(marks: list[dict]) -> list[dict]:
-    out: list[dict] = []
-    for m in marks:
-        item = dict(m)
-        item.setdefault('visible', True)
-        out.append(item)
-    return out
 
-def overlay_suggestion(text: str, prefix: str | None = None) -> str:
-    if not prefix:
-        return text
-    if text.startswith(prefix):
-        return text
-    return f'{prefix}{text}'
+def active_arrival_payload(
+    db: Session, trips: list[Trip], stop_name: str | None = None
+) -> list[dict]:
+    """给定在跑班次的实际到站记录，供间隔检测/建议共用。
+
+    返回的 trip_no 一定来自在跑班次，保证建议点名的班次
+    都能在同一参与集产出的报告事件里对得上。
+    """
+    trip_ids = [t.id for t in trips]
+    if not trip_ids:
+        return []
+    trip_no_map = {t.id: t.trip_no for t in trips}
+    stmt = select(Arrival).where(Arrival.trip_id.in_(trip_ids))
+    if stop_name is not None:
+        stmt = stmt.where(Arrival.stop_name == stop_name)
+    arrivals = db.scalars(stmt).all()
+    return [
+        {
+            "stop_name": a.stop_name,
+            "trip_no": trip_no_map[a.trip_id],
+            "actual_arrive": a.actual_arrive,
+        }
+        for a in arrivals
+    ]

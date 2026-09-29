@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { api } from './api'
+import { activeScopeVersion } from './store'
 
 const marks = ref<any[]>([])
 const stopName = ref('')
@@ -18,7 +19,9 @@ async function load() {
 }
 
 onMounted(load)
+// 路由切换或停运/恢复生效后，头部发车间隔轴都按当前在跑班次重算
 watch(() => route.fullPath, load)
+watch(activeScopeVersion, load)
 </script>
 <template>
   <div class="bg-shell">
