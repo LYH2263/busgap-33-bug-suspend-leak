@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { api } from '../api'
+import { dataVersion, notifyDataChanged } from '../refresh'
 const trips = ref<any[]>([])
 const events = ref<any[]>([])
 const busy = ref<number | null>(null)
@@ -11,11 +12,15 @@ async function refresh() {
   } catch { events.value = [] }
 }
 onMounted(refresh)
+watch(dataVersion, refresh)
 async function toggle(r: any) {
   busy.value = r.id
   try {
     await api(`/trips/${r.id}/${r.cancelled ? 'restore' : 'cancel'}`, { method: 'POST' })
-    trips.value = await api('/trips')
+    // 保存成功才通知各读口一齐重算；保存失败时列表、轴、建议都不得当成已停运
+    notifyDataChanged()
+  } catch (e) {
+    console.error('停运状态保存失败，保持原状', e)
   } finally { busy.value = null }
 }
 function stripClass(s: string) {
@@ -28,7 +33,7 @@ function label(s: string) {
 <template>
   <h1>班次 · 间隔条带</h1>
   <p class="sub">左侧班次清单（可停运/恢复），右侧串车/间隔竖直条带</p>
-  <p class="muted">业务页与检测读口未强制同参与集</p>
+  <p class="muted">停运 / 恢复后事件、时间轴与建议按同一在跑班次集一齐重算</p>
   <div class="bg-split">
     <aside class="bg-trip-col">
       <h2>班次列表</h2>

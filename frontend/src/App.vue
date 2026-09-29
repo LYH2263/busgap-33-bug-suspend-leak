@@ -2,6 +2,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { RouterLink, RouterView, useRoute } from 'vue-router'
 import { api } from './api'
+import { dataVersion } from './refresh'
 
 const marks = ref<any[]>([])
 const stopName = ref('')
@@ -19,6 +20,7 @@ async function load() {
 
 onMounted(load)
 watch(() => route.fullPath, load)
+watch(dataVersion, load)
 </script>
 <template>
   <div class="bg-shell">

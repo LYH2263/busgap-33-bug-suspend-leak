@@ -102,6 +102,38 @@ def test_cancel_does_not_change_arrival_times(client):
     assert before == after
 
 
+def test_cancel_does_not_shift_sibling_planned_depart(client):
+    # 停运 / 恢复都不得改动旁班的计划时刻
+    before = {t["trip_no"]: t["planned_depart"] for t in client.get("/api/trips").json()}
+    client.post(f"/api/trips/{trip_id(client, 'T03')}/cancel")
+    after_cancel = {t["trip_no"]: t["planned_depart"] for t in client.get("/api/trips").json()}
+    assert before == after_cancel
+    client.post(f"/api/trips/{trip_id(client, 'T03')}/restore")
+    after_restore = {t["trip_no"]: t["planned_depart"] for t in client.get("/api/trips").json()}
+    assert before == after_restore
+
+
+def test_suggestions_name_only_trips_in_report_events(client):
+    # 建议点名的班次号必须能在报告事件里对得上
+    def pairs(events):
+        return {(e["earlier_trip"], e["later_trip"]) for e in events}
+
+    client.post(f"/api/trips/{trip_id(client, 'T04')}/cancel")
+    events = run_events(client)
+    sugg = client.get("/api/reports/suggestions?line_id=1").json()["suggestions"]
+    assert pairs(sugg) <= pairs(events)
+    assert "T04" not in {t for e in sugg for t in (e["earlier_trip"], e["later_trip"])}
+
+    # 恢复后建议与事件、轴一齐按在跑集重算；T04 恢复后的事件与轴点必须回来
+    client.post(f"/api/trips/{trip_id(client, 'T04')}/restore")
+    events = run_events(client)
+    sugg = client.get("/api/reports/suggestions?line_id=1").json()["suggestions"]
+    assert pairs(sugg) <= pairs(events)
+    assert "T04" in {t for e in events for t in (e["earlier_trip"], e["later_trip"])}
+    marks = client.get("/api/reports/timeline?line_id=1&stop_name=市民中心").json()["marks"]
+    assert "T04" in [m["trip_no"] for m in marks]
+
+
 def test_cancel_unknown_trip_404(client):
     assert client.post("/api/trips/9999/cancel").status_code == 404
     assert client.post("/api/trips/9999/restore").status_code == 404

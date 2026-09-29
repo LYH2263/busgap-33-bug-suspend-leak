@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { api } from '../api'
-import { unifyStatusLabel, axisKeepsAllMarks, noticeForFork } from '../viewHints'
+import { unifyStatusLabel } from '../viewHints'
+import { dataVersion } from '../refresh'
 const trips = ref<any[]>([])
 const events = ref<any[]>([])
 const loading = ref(false)
@@ -11,10 +12,12 @@ async function run() {
     events.value = (await api('/reports/run?line_id=1', { method: 'POST' })).events || []
   } finally { loading.value = false }
 }
-onMounted(async () => {
+async function loadAll() {
   trips.value = await api('/trips')
   await run()
-})
+}
+onMounted(loadAll)
+watch(dataVersion, loadAll)
 function stripClass(s: string) {
   return s === 'bunching' ? 'bg-bunch' : s === 'large_gap' ? 'bg-large' : ''
 }

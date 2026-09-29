@@ -15,7 +15,7 @@ export function axisKeepsAllMarks(marks: any[]): any[] {
 export function noticeForFork(kind: string): string {
   if (kind === 'skip') return '越站勾选与轴上参与集可能不一致'
   if (kind === 'hold') return '扣车后轴点与间隔数字可能分叉'
-  if (kind === 'suspend') return '停运后建议页仍可能点名该班'
+  if (kind === 'suspend') return '停运班次已从事件、轴与建议中排除，恢复后三处一齐重算'
   if (kind === 'disable') return '停用后历史报告可能被一并藏起'
   if (kind === 'dry') return '试算与已存报告共用展示区'
   return '报告与时间轴参与集可能分叉'
